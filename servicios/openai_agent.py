@@ -89,3 +89,38 @@ async def generar_respuesta_ia(historial_mensajes, herramientas=None, funcion_gu
     except Exception as error:
         print(f"Error en OpenAI: {str(error)}")
         return "Permíteme revisar esa información con nuestro equipo para darte una respuesta correcta."
+
+    # =====================================================================
+# 5. DEFINICIÓN DE HERRAMIENTAS (FUNCTION CALLING)
+# =====================================================================
+herramientas_openai = [
+    {
+        "type": "function",
+        "function": {
+            "name": "registrar_paciente",
+            "description": "Extrae los datos de un paciente cuando proporciona su información para agendar una cita.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "nombre_completo": {
+                        "type": "string",
+                        "description": "El nombre completo del paciente."
+                    },
+                    "telefono": {
+                        "type": "string",
+                        "description": "El número de teléfono o WhatsApp."
+                    },
+                    "tratamiento_interes": {
+                        "type": "string",
+                        "description": "El tratamiento por el que está interesado."
+                    },
+                    "fecha_cumpleanos": {
+                        "type": "string",
+                        "description": "La fecha de cumpleaños o nacimiento."
+                    }
+                },
+                "required": ["nombre_completo", "telefono"]
+            }
+        }
+    }
+]

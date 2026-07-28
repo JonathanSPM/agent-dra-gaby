@@ -13,7 +13,7 @@ app = FastAPI()
 memoria_charlas = {}
 
 # 3. Definimos la función de Google Sheets ANTES de usarla en el webhook
-def guardar_prospecto_en_sheets(nombre: str, telefono: str, fecha_nacimiento: str = "No proporcionada"):
+def guardar_prospecto_en_sheets(nombre: str, telefono: str, tratamiento: str = "No especificado", fecha_nacimiento: str = "No proporcionada"):
     """
     Conecta con Google Sheets e inserta los datos del paciente.
     """
@@ -24,10 +24,11 @@ def guardar_prospecto_en_sheets(nombre: str, telefono: str, fecha_nacimiento: st
         service = build('sheets', 'v4', credentials=creds)
         
         SPREADSHEET_ID = os.getenv("GOOGLE_SHEET_ID") 
-        RANGE_NAME = 'Hoja 1!A:F' 
+        RANGE_NAME = 'Hoja 1!A:G' 
         
         fecha_registro = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        row_data = [fecha_registro, nombre, telefono, fecha_nacimiento, "Pendiente"]
+        # Ahora guardamos: Fecha, Nombre, Teléfono, Tratamiento, Cumpleaños, Estado
+        row_data = [fecha_registro, nombre, telefono, tratamiento, fecha_nacimiento, "Pendiente"]
         
         body = {'values': [row_data]}
         service.spreadsheets().values().append(
@@ -41,7 +42,7 @@ def guardar_prospecto_en_sheets(nombre: str, telefono: str, fecha_nacimiento: st
     except Exception as e:
         print(f"Error al guardar en Google Sheets: {e}")
         return False
-
+    
 # 4. Tu ruta de Webhook
 @app.post("/webhook")
 async def recibir_mensaje(datos: Request):
