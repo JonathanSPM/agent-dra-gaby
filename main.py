@@ -1,3 +1,14 @@
+from fastapi import FastAPI, Request
+import json
+# (Aquí van tus otras importaciones, como os, tu agente de OpenAI, Google, etc...)
+
+# 1. ESTA ES LA LÍNEA CRÍTICA QUE FALTA O SE BORRÓ
+app = FastAPI()
+
+# 2. Inicializamos el diccionario de memoria si lo tienes aquí
+memoria_charlas = {}
+
+# 3. AHORA SÍ, viene tu código modificado
 @app.post("/webhook")
 async def recibir_mensaje(datos: Request):
     raw_bytes = await datos.body()
@@ -5,6 +16,8 @@ async def recibir_mensaje(datos: Request):
 
     # Reparamos saltos de línea crudos dentro del JSON (Manychat no los escapa)
     texto_saneado = raw_texto.replace("\r\n", "\\n").replace("\n", "\\n").replace("\r", "\\n")
+    
+    # ... (el resto de tu código sigue normal hacia abajo)
 
     try:
         cuerpo = json.loads(texto_saneado)
