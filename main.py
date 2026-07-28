@@ -24,14 +24,14 @@ herramientas_openai = [
                     },
                     "tratamiento_interes": {
                         "type": "string",
-                        "description": "El tratamiento o servicio por el cual preguntó el paciente"
+                        "description": "El tratamiento o servicio por el cual preguntó el paciente, si se mencionó"
                     },
                     "fecha_cumpleanos": {
                         "type": "string",
-                        "description": "La fecha de cumpleaños del paciente en formato DD/MM/AAAA"
+                        "description": "La fecha de cumpleaños del paciente en formato DD/MM, si la compartió"
                     }
                 },
-                "required": ["nombre_completo", "telefono", "tratamiento_interes", "fecha_cumpleanos"]
+                "required": ["nombre_completo", "telefono"]
             }
         }
     }
