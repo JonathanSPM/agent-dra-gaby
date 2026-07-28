@@ -57,7 +57,8 @@ async def recibir_mensaje(datos: Request):
         print(f"📄 BODY CRUDO RECIBIDO: {raw_texto}")
         return {"respuesta_servidor": "Permíteme revisar esa información con nuestro equipo para darte una respuesta correcta."}
 
-    texto_usuario = str(cuerpo.get("texto", "")).strip()
+# Aplanamos el texto para que la IA no se confunda con múltiples renglones
+    texto_usuario = str(cuerpo.get("texto", "")).replace("\r\n", " ").replace("\n", " ").replace("\r", " ").strip()
     identificador = str(cuerpo.get("user_id", "usuario_default")).strip()
 
     print(f"📥 MENSAJE RECIBIDO de [{identificador}]: '{texto_usuario[:45]}...'")
