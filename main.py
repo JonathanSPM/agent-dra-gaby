@@ -1,8 +1,10 @@
+import os
+import json
+from datetime import datetime
 from fastapi import FastAPI, Request
-from servicios.openai_agent import generar_respuesta_ia
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from datetime import datetime
+from servicios.openai_agent import generar_respuesta_ia
 
 # Definimos las herramientas de OpenAI fuera de las funciones
 herramientas_openai = [
@@ -38,26 +40,26 @@ herramientas_openai = [
 ]
 
 def guardar_en_sheets(nombre, telefono, tratamiento, cumpleanos):
-    # Configuración de credenciales
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-    creds = service_account.Credentials.from_service_account_file('credenciales.json', scopes=SCOPES)
-    # Conexión a la API
+
+    # Lee las credenciales desde la variable de entorno (no desde archivo)
+    creds_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
+    creds_dict = json.loads(creds_json)
+    creds = service_account.Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+
     service = build('sheets', 'v4', credentials=creds)
-    
-    # ID CORREGIDO: Solo el código alfanumérico
-    SPREADSHEET_ID = '1U4Sr0Bgm4-dGhYzpEQeM_3LVvE6ceA_kPW0BSFsnIp8' 
-    RANGE_NAME = 'Hoja 1!A:F' 
-    
-    # Obtener fecha actual
+
+    SPREADSHEET_ID = '1U4Sr0Bgm4-dGhYzpEQeM_3LVvE6ceA_kPW0BSFsnIp8'
+    RANGE_NAME = 'Hoja 1!A:F'
+
     fecha_registro = datetime.now().strftime("%d/%m/%Y")
-    
-    # Preparar la fila
+
     valores = [
         [fecha_registro, nombre, telefono, tratamiento, cumpleanos, "Prospecto"]
     ]
-    
+
     body = {'values': valores}
-    
+
     try:
         result = service.spreadsheets().values().append(
             spreadsheetId=SPREADSHEET_ID,
@@ -79,7 +81,7 @@ memoria_charlas = {}
 @app.post("/webhook")
 async def recibir_mensaje(datos: Request):
     cuerpo = await datos.json()
-    
+
     texto_usuario = str(cuerpo.get("texto", "")).strip()
     identificador = str(cuerpo.get("user_id", "usuario_default")).strip()
 
@@ -103,7 +105,6 @@ async def recibir_mensaje(datos: Request):
 
     print(f"--- Memoria actual del usuario [{identificador}] (Mensajes: {len(memoria_charlas[identificador])}) ---")
 
-    # Aquí le enviaremos también las herramientas a tu agente
     respuesta_ia = await generar_respuesta_ia(memoria_charlas[identificador], herramientas_openai, guardar_en_sheets)
 
     memoria_charlas[identificador].append({"role": "assistant", "content": respuesta_ia})
