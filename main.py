@@ -1,100 +1,252 @@
 from fastapi import FastAPI, Request
 import json
 import os
+import re
+import html
 from datetime import datetime
 from zoneinfo import ZoneInfo
+
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+
 from servicios.openai_agent import generar_respuesta_ia, herramientas_openai
 
-# 1. Inicializamos FastAPI
+
 app = FastAPI()
 
-# 2. Inicializamos la memoria
 memoria_charlas = {}
 
-# 3. Definimos la función de Google Sheets ANTES de usarla en el webhook
-def guardar_prospecto_en_sheets(nombre: str, telefono: str, tratamiento: str = "No especificado", fecha_nacimiento: str = "No proporcionada"):
+
+@app.middleware("http")
+async def log_todas_las_peticiones(request: Request, call_next):
+    print("========== PETICION ENTRANTE ==========")
+    print("METHOD:", request.method)
+    print("URL:", str(request.url))
+    print("HEADERS:", dict(request.headers))
+    print("=======================================")
+
+    response = await call_next(request)
+
+    print("STATUS RESPONSE:", response.status_code)
+    return response
+
+
+@app.get("/")
+async def home():
+    return {
+        "status": "ok",
+        "message": "Servidor activo"
+    }
+
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "healthy"
+    }
+
+
+@app.post("/test")
+async def test_endpoint(datos: Request):
+    raw_bytes = await datos.body()
+    raw_texto = raw_bytes.decode("utf-8", errors="replace")
+
+    print("========== TEST ENDPOINT ==========")
+    print("BODY RECIBIDO:", repr(raw_texto))
+    print("===================================")
+
+    return {
+        "ok": True,
+        "body": raw_texto
+    }
+
+
+def normalizar_texto_usuario(texto):
+    """
+    Limpia mensajes recibidos desde ManyChat o WhatsApp.
+    Convierte saltos de linea, saltos escapados, etiquetas HTML y espacios multiples.
+    """
+    if texto is None:
+        return ""
+
+    texto = str(texto)
+
+    texto = html.unescape(texto)
+
+    texto = re.sub(r"<br\s*/?>", " ", texto, flags=re.IGNORECASE)
+
+    texto = texto.replace("\\r\\n", " ")
+    texto = texto.replace("\\n", " ")
+    texto = texto.replace("\\r", " ")
+
+    texto = texto.replace("\r\n", " ")
+    texto = texto.replace("\n", " ")
+    texto = texto.replace("\r", " ")
+
+    texto = re.sub(r"\s+", " ", texto)
+
+    return texto.strip()
+
+
+def guardar_prospecto_en_sheets(
+    nombre: str,
+    telefono: str,
+    tratamiento: str = "No especificado",
+    fecha_nacimiento: str = "No proporcionada"
+):
     """
     Conecta con Google Sheets e inserta los datos del paciente.
     """
     try:
-        credenciales_dict = json.loads(os.getenv("GOOGLE_CREDENTIALS"))
-        SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-        creds = service_account.Credentials.from_service_account_info(credenciales_dict, scopes=SCOPES)
-        service = build('sheets', 'v4', credentials=creds)
-        
-        SPREADSHEET_ID = os.getenv("GOOGLE_SHEET_ID") 
-        RANGE_NAME = 'Hoja 1!A:G' 
-        
-        # Se recalcula en cada guardado (no al arrancar el servidor) y ya usa la hora de Puebla/CDMX
-        fecha_registro = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%Y-%m-%d %H:%M:%S")
-        # Ahora guardamos: Fecha, Nombre, Teléfono, Tratamiento, Cumpleaños, Estado
-        row_data = [fecha_registro, nombre, telefono, tratamiento, fecha_nacimiento, "Pendiente"]
-        
-        body = {'values': [row_data]}
+        google_credentials_raw = os.getenv("GOOGLE_CREDENTIALS")
+        spreadsheet_id = os.getenv("GOOGLE_SHEET_ID")
+
+        if not google_credentials_raw:
+            print("ERROR: No existe la variable GOOGLE_CREDENTIALS")
+            return False
+
+        if not spreadsheet_id:
+            print("ERROR: No existe la variable GOOGLE_SHEET_ID")
+            return False
+
+        credenciales_dict = json.loads(google_credentials_raw)
+
+        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+
+        creds = service_account.Credentials.from_service_account_info(
+            credenciales_dict,
+            scopes=scopes
+        )
+
+        service = build("sheets", "v4", credentials=creds)
+
+        range_name = "Hoja 1!A:G"
+
+        fecha_registro = datetime.now(
+            ZoneInfo("America/Mexico_City")
+        ).strftime("%Y-%m-%d %H:%M:%S")
+
+        row_data = [
+            fecha_registro,
+            nombre,
+            telefono,
+            tratamiento,
+            fecha_nacimiento,
+            "Pendiente"
+        ]
+
+        body = {
+            "values": [row_data]
+        }
+
         service.spreadsheets().values().append(
-            spreadsheetId=SPREADSHEET_ID,
-            range=RANGE_NAME,
-            valueInputOption='USER_ENTERED',
+            spreadsheetId=spreadsheet_id,
+            range=range_name,
+            valueInputOption="USER_ENTERED",
             body=body
         ).execute()
-        
+
+        print("Prospecto guardado en Google Sheets")
+        print("Nombre:", nombre)
+        print("Telefono:", telefono)
+        print("Tratamiento:", tratamiento)
+        print("Fecha nacimiento o cumpleanos:", fecha_nacimiento)
+
         return True
+
     except Exception as e:
-        print(f"Error al guardar en Google Sheets: {e}")
+        print("Error al guardar en Google Sheets:", e)
         return False
-    
-# 4. Tu ruta de Webhook
+
+
 @app.post("/webhook")
 async def recibir_mensaje(datos: Request):
     raw_bytes = await datos.body()
     raw_texto = raw_bytes.decode("utf-8", errors="replace")
 
     try:
-        # strict=False soluciona el problema de los saltos de línea crudos de ManyChat
         cuerpo = json.loads(raw_texto, strict=False)
-    except Exception as e:
-        print(f"❌ ERROR AL PARSEAR JSON: {e}")
-        print(f"📄 BODY CRUDO RECIBIDO: {raw_texto}")
-        return {"respuesta_servidor": "Permíteme revisar esa información con nuestro equipo para darte una respuesta correcta."}
 
-    # --- MODIFICACIÓN AQUÍ ---
-    # Buscamos primero en el formato Full Contact Data ("last_input_text" e "id") 
-    # y dejamos tus claves originales ("texto" y "user_id") como respaldo.
+    except Exception as e:
+        print("ERROR AL PARSEAR JSON")
+        print("Error:", e)
+        print("BODY CRUDO RECIBIDO:", repr(raw_texto))
+
+        return {
+            "respuesta_servidor": "Permíteme revisar esa información con nuestro equipo para darte una respuesta correcta."
+        }
+
     texto_crudo = cuerpo.get("last_input_text", cuerpo.get("texto", ""))
     id_crudo = cuerpo.get("id", cuerpo.get("user_id", "usuario_default"))
-    
-    # Aplanamos el texto para que la IA no se confunda con múltiples renglones
-    texto_usuario = str(texto_crudo).replace("\r\n", " ").replace("\n", " ").replace("\r", " ").strip()
+
+    texto_usuario = normalizar_texto_usuario(texto_crudo)
     identificador = str(id_crudo).strip()
-    # -------------------------
 
-    print(f"📥 MENSAJE RECIBIDO de [{identificador}]: '{texto_usuario[:45]}...'")
-    
+    print("========== WEBHOOK RECIBIDO ==========")
+    print("RAW BODY:", repr(raw_texto))
+    print("CUERPO PARSEADO:", cuerpo)
+    print("TEXTO CRUDO:", repr(texto_crudo))
+    print("TEXTO NORMALIZADO:", repr(texto_usuario))
+    print("ID CRUDO:", repr(id_crudo))
+    print("IDENTIFICADOR:", repr(identificador))
+    print("======================================")
+
     if not texto_usuario or texto_usuario == "Última entrada de texto":
-        return {"respuesta_servidor": "Hola, ¿en qué te puedo ayudar hoy? Si tienes alguna pregunta sobre tratamientos estéticos o deseas agendar una valoración, estoy aquí para apoyarte."}
+        return {
+            "respuesta_servidor": "Hola, ¿en qué te puedo ayudar hoy? Si tienes alguna pregunta sobre tratamientos estéticos o deseas agendar una valoración, estoy aquí para apoyarte."
+        }
 
-    palabras_reinicio = ["reiniciar", "borrar", "empezar de cero", "clear", "nueva consulta"]
+    palabras_reinicio = [
+        "reiniciar",
+        "borrar",
+        "empezar de cero",
+        "clear",
+        "nueva consulta"
+    ]
+
     if any(palabra in texto_usuario.lower() for palabra in palabras_reinicio):
         memoria_charlas[identificador] = []
-        return {"respuesta_servidor": "¡Listo! He borrado el historial de nuestra conversación anterior. ¿En qué nuevo tratamiento o servicio te gustaría que te ayude hoy?"}
+
+        return {
+            "respuesta_servidor": "¡Listo! He borrado el historial de nuestra conversación anterior. ¿En qué nuevo tratamiento o servicio te gustaría que te ayude hoy?"
+        }
 
     if identificador not in memoria_charlas:
         memoria_charlas[identificador] = []
 
-    memoria_charlas[identificador].append({"role": "user", "content": texto_usuario})
+    memoria_charlas[identificador].append({
+        "role": "user",
+        "content": texto_usuario
+    })
 
-    if len(memoria_charlas[identificador]) > 8:
-        memoria_charlas[identificador] = memoria_charlas[identificador][-8:]
+    if len(memoria_charlas[identificador]) > 16:
+        memoria_charlas[identificador] = memoria_charlas[identificador][-16:]
 
-    print(f"--- Memoria actual del usuario [{identificador}] (Mensajes: {len(memoria_charlas[identificador])}) ---")
+    print(
+        "--- Memoria actual del usuario "
+        + identificador
+        + " Mensajes: "
+        + str(len(memoria_charlas[identificador]))
+        + " ---"
+    )
 
-    # Ahora sí, el editor reconoce la función porque está definida arriba
-    respuesta_ia = await generar_respuesta_ia(memoria_charlas[identificador], herramientas_openai, guardar_prospecto_en_sheets)
+    print(memoria_charlas[identificador])
 
-    memoria_charlas[identificador].append({"role": "assistant", "content": respuesta_ia})
+    respuesta_ia = await generar_respuesta_ia(
+        memoria_charlas[identificador],
+        herramientas_openai,
+        guardar_prospecto_en_sheets
+    )
 
-    print("=== IA RESPONDE ===", respuesta_ia)
+    memoria_charlas[identificador].append({
+        "role": "assistant",
+        "content": respuesta_ia
+    })
 
-    return {"respuesta_servidor": respuesta_ia}
+    print("========== IA RESPONDE ==========")
+    print(respuesta_ia)
+    print("=================================")
+
+    return {
+        "respuesta_servidor": respuesta_ia
+    }
