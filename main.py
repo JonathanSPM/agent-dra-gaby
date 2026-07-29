@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 import json
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from servicios.openai_agent import generar_respuesta_ia, herramientas_openai
@@ -26,7 +27,8 @@ def guardar_prospecto_en_sheets(nombre: str, telefono: str, tratamiento: str = "
         SPREADSHEET_ID = os.getenv("GOOGLE_SHEET_ID") 
         RANGE_NAME = 'Hoja 1!A:G' 
         
-        fecha_registro = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Se recalcula en cada guardado (no al arrancar el servidor) y ya usa la hora de Puebla/CDMX
+        fecha_registro = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%Y-%m-%d %H:%M:%S")
         # Ahora guardamos: Fecha, Nombre, Teléfono, Tratamiento, Cumpleaños, Estado
         row_data = [fecha_registro, nombre, telefono, tratamiento, fecha_nacimiento, "Pendiente"]
         

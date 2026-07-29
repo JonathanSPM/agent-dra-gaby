@@ -4,6 +4,7 @@
 import os
 import json
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
 
@@ -33,7 +34,8 @@ async def generar_respuesta_ia(historial_mensajes, herramientas=None, funcion_gu
         instrucciones = leer_archivo("prompt_sistema.md")
         knowledge_base = leer_archivo("base_conocimientos.md")
 
-        fecha_hoy = datetime.now().strftime("%d/%m/%Y")
+        # Se recalcula en cada mensaje (no al arrancar el servidor) y ya usa la hora de Puebla/CDMX
+        fecha_hoy = datetime.now(ZoneInfo("America/Mexico_City")).strftime("%d/%m/%Y")
         contexto_tiempo = f"""
         \n\n=== CONTEXTO TEMPORAL ===
         - La fecha de hoy es: {fecha_hoy}.
