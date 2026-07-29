@@ -59,9 +59,16 @@ async def recibir_mensaje(datos: Request):
         print(f"📄 BODY CRUDO RECIBIDO: {raw_texto}")
         return {"respuesta_servidor": "Permíteme revisar esa información con nuestro equipo para darte una respuesta correcta."}
 
-# Aplanamos el texto para que la IA no se confunda con múltiples renglones
-    texto_usuario = str(cuerpo.get("texto", "")).replace("\r\n", " ").replace("\n", " ").replace("\r", " ").strip()
-    identificador = str(cuerpo.get("user_id", "usuario_default")).strip()
+    # --- MODIFICACIÓN AQUÍ ---
+    # Buscamos primero en el formato Full Contact Data ("last_input_text" e "id") 
+    # y dejamos tus claves originales ("texto" y "user_id") como respaldo.
+    texto_crudo = cuerpo.get("last_input_text", cuerpo.get("texto", ""))
+    id_crudo = cuerpo.get("id", cuerpo.get("user_id", "usuario_default"))
+    
+    # Aplanamos el texto para que la IA no se confunda con múltiples renglones
+    texto_usuario = str(texto_crudo).replace("\r\n", " ").replace("\n", " ").replace("\r", " ").strip()
+    identificador = str(id_crudo).strip()
+    # -------------------------
 
     print(f"📥 MENSAJE RECIBIDO de [{identificador}]: '{texto_usuario[:45]}...'")
     
