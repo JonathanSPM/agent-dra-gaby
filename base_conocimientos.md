@@ -9,6 +9,10 @@ _📌 Instrucciones para Atención al Cliente:\
 • Nunca hagas diagnósticos ni prometas resultados absolutos.\
 • Siempre explica que el tratamiento ideal depende de una valoración médica._
 
+
+📍 ¿Dónde están ubicados o en qué ciudad están?
+Nos encontramos en la hermosa ciudad de Puebla, en Colonia La Paz. ¡Nos encantaría recibirte en nuestras instalaciones para tu valoración!
+
 **👩‍⚕️ ¿Qué tratamientos ofrece la Dra. Gaby Bautista?**
 
 La Dra. Gaby Bautista realiza protocolos 100% personalizados de **Medicina Estética y Modulación de la Edad** ✨.
