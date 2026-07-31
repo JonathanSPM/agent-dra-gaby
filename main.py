@@ -240,8 +240,7 @@ async def recibir_mensaje(datos: Request):
     )
 
     print(memoria_charlas[identificador])
-
-   try:
+    try:
         # Forzamos un límite de 12 segundos para que ManyChat no cierre la conexión
         respuesta_ia = await asyncio.wait_for(
             generar_respuesta_ia(
