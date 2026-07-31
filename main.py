@@ -3,6 +3,7 @@ import json
 import os
 import re
 import html
+import asyncio
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -191,12 +192,20 @@ async def recibir_mensaje(datos: Request):
     print("IDENTIFICADOR:", repr(identificador))
     print("======================================")
 
+  # 1. Validación de mensajes vacíos o de sistema
     if not texto_usuario or texto_usuario == "Última entrada de texto":
         return {
-            "respuesta_servidor": "Hola, ¿en qué te puedo ayudar hoy? Si tienes alguna pregunta sobre tratamientos estéticos o deseas agendar una valoración, estoy aquí para apoyarte."
+            "respuesta_servidor": "¡Hola! 👋 Por el momento soy un asistente de texto y no puedo ver archivos. ¿Podrías escribirme tu duda o decirme en qué tratamiento estás interesada?"
+        }
+
+    palabras_multimedia = ["image", "imagen", "photo", "foto", "attachment", "video", "sticker"]
+    if texto_usuario.lower() in palabras_multimedia:
+        return {
+            "respuesta_servidor": "¡Hola! 📸 Veo que me enviaste un archivo multimedia, pero por ahora solo puedo leer texto. ¿Me podrías escribir tu pregunta o describir lo que buscas, por favor? ✨"
         }
 
     palabras_reinicio = [
+        "Hola"
         "reiniciar",
         "borrar",
         "empezar de cero",
@@ -232,11 +241,27 @@ async def recibir_mensaje(datos: Request):
 
     print(memoria_charlas[identificador])
 
-    respuesta_ia = await generar_respuesta_ia(
-        memoria_charlas[identificador],
-        herramientas_openai,
-        guardar_prospecto_en_sheets
-    )
+   try:
+        # Forzamos un límite de 12 segundos para que ManyChat no cierre la conexión
+        respuesta_ia = await asyncio.wait_for(
+            generar_respuesta_ia(
+                memoria_charlas[identificador],
+                herramientas_openai,
+                guardar_prospecto_en_sheets
+            ),
+            timeout=12.0
+        )
+    except asyncio.TimeoutError:
+        print("ERROR: Timeout en OpenAI (Tomó más de 12 segundos)")
+        respuesta_ia = "¡Una disculpa! 😅 Mi sistema está recibiendo muchos mensajes y tardó un poco. ¿Me podrías repetir tu pregunta, por favor?"
+        # Borramos el intento fallido de la memoria para no arrastrar el error
+        if memoria_charlas[identificador]:
+            memoria_charlas[identificador].pop()
+    except Exception as e:
+        print("ERROR INESPERADO AL LLAMAR A LA IA:", e)
+        respuesta_ia = "Ups, tuve un pequeño inconveniente técnico. 🛠️ ¿Podrías intentar escribirme de nuevo en un momento?"
+        if memoria_charlas[identificador]:
+            memoria_charlas[identificador].pop()
 
     memoria_charlas[identificador].append({
         "role": "assistant",
