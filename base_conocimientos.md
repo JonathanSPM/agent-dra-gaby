@@ -11,7 +11,7 @@ _📌 Instrucciones para Atención al Cliente:\
 
 
 📍 ¿Dónde están ubicados o en qué ciudad están?
-Nos encontramos en la hermosa ciudad de Puebla, en Colonia La Paz. ¡Nos encantaría recibirte en nuestras instalaciones para tu valoración!
+Nos encontramos en la ciudad de Puebla, en Colonia La Paz. ¡Nos encantaría recibirte en nuestras instalaciones para tu valoración!
 
 **👩‍⚕️ ¿Qué tratamientos ofrece la Dra. Gaby Bautista?**
 
