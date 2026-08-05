@@ -52,7 +52,10 @@ async def generar_respuesta_ia(historial_mensajes, herramientas=None, funcion_gu
         parametros_peticion = {
             "model": "gpt-4o-mini",
             "messages": mensajes_para_enviar,
-            "temperature": 0
+            "temperature": 0.1
+            max_tokens=150,
+            top_p=0.9
+        
         }
 
         if herramientas:
